@@ -9,16 +9,18 @@ export async function getDashboardStats() {
     const scheduledPosts = await prisma.content.count({ where: { status: 'SCHEDULED' } });
     const draftPosts = await prisma.content.count({ where: { status: 'DRAFT' } });
 
-    const upcoming = await prisma.content.findMany({
+    const upcoming = await prisma.scheduledPost.findMany({
       where: { status: 'SCHEDULED' },
       orderBy: { scheduledAt: 'asc' },
-      take: 5
+      take: 5,
+      include: { content: { select: { title: true } } }
     });
 
-    const recent = await prisma.content.findMany({
+    const recent = await prisma.scheduledPost.findMany({
       where: { status: 'PUBLISHED' },
       orderBy: { publishedAt: 'desc' },
-      take: 5
+      take: 5,
+      include: { content: { select: { title: true } } }
     });
 
     return {

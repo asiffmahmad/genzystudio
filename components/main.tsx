@@ -1,13 +1,3 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'next/navigation'
-import App from './App.tsx'
-import './index.css'
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>,
-)
+// This file is kept for reference only and is not used in Next.js App Router.
+// Entry point is app/layout.tsx and app/page.tsx.
+export {};

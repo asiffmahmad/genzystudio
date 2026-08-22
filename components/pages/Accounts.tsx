@@ -6,9 +6,9 @@ interface SocialAccount {
   id: string;
   platform: string;
   accountName: string;
-  accountType: string;
+  accountType: string | null;
   connectionStatus: string;
-  lastSuccessfulConnection: string;
+  lastSuccessfulConnection: Date | string | null;
 }
 
 const PLATFORMS = [

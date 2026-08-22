@@ -4,18 +4,13 @@ import prisma from '../lib/prisma';
 
 export async function getScheduledPosts(start?: string, end?: string) {
   try {
-    let whereClause = {};
-    if (start && end) {
-      whereClause = {
+    const scheduledPosts = await prisma.scheduledPost.findMany({
+      where: start && end ? {
         scheduledAt: {
           gte: new Date(start),
           lte: new Date(end)
         }
-      };
-    }
-
-    const scheduledPosts = await prisma.scheduledPost.findMany({
-      where: whereClause,
+      } : undefined,
       include: {
         content: {
           select: {
