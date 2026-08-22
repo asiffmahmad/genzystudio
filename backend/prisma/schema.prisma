@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SocialAccount {
+  id             String    @id @default(uuid())
+  platform       String
+  accountName    String
+  accountType    String?
+  connectionStatus String
+  lastSuccessfulConnection DateTime?
+  tokenExpiry    DateTime?
+  encryptedAccessToken  String? @db.Text
+  encryptedRefreshToken String? @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Content {
+  id        String   @id @default(uuid())
+  title     String
+  content   String?  @db.Text
+  link      String?
+  hashtags  String?
+  tags      String?
+  notes     String?  @db.Text
+  status    String   @default("DRAFT")
+  variants  ContentVariant[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ContentVariant {
+  id        String   @id @default(uuid())
+  contentId String
+  platform  String
+  content   String?  @db.Text
+  image     String?
+  link      String?
+  hashtags  String?
+  master    Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MediaAsset {
+  id        String   @id @default(uuid())
+  fileName  String
+  mimeType  String
+  fileSize  Int
+  data      Bytes    @db.LongBlob
+  checksum  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ScheduledPost {
+  id           String    @id @default(uuid())
+  contentId    String
+  platform     String
+  scheduledAt  DateTime
+  status       String    @default("SCHEDULED") // DRAFT, SCHEDULED, PUBLISHING, PUBLISHED, FAILED, CANCELLED
+  publishedAt  DateTime?
+  errorMessage String?   @db.Text
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(3)
+  lastAttemptAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([platform])
+}
+
+model PublicationResult {
+  id              String   @id @default(uuid())
+  scheduledPostId String
+  platform        String
+  success         Boolean
+  providerId      String?  // The ID returned by the social network
+  errorMessage    String?  @db.Text
+  createdAt       DateTime @default(now())
+}
+
+model Idea {
+  id          String   @id @default(uuid())
+  title       String
+  description String?  @db.Text
+  tags        String?
+  sourceUrl   String?
+  notes       String?  @db.Text
+  attachment  String?
+  status      String   @default("IDEA") // IDEA, RESEARCHING, DRAFT, READY, USED, ARCHIVED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Task {
+  id               String   @id @default(uuid())
+  title            String
+  description      String?  @db.Text
+  status           String   @default("PENDING") // PENDING, COMPLETED
+  priority         String   @default("NORMAL")
+  dueDate          DateTime?
+  recurrenceType   String?  // NONE, DAILY, WEEKLY, MONTHLY
+  recurrenceConfig String?
+  completedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model TaskOccurrence {
+  id          String   @id @default(uuid())
+  taskId      String
+  dueDate     DateTime
+  status      String   @default("PENDING")
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AiSuggestion {
+  id                String   @id @default(uuid())
+  title             String
+  topic             String
+  whyItMatters      String?  @db.Text
+  source            String?
+  suggestedPlatform String?
+  suggestedFormat   String?
+  suggestedHook     String?  @db.Text
+  suggestedContent  String?  @db.Text
+  suggestedHashtags String?
+  potentialAudience String?
+  priority          String?
+  status            String   @default("NEW") // NEW, SAVED, DISMISSED, USED
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AnalyticsSnapshot {
+  id              String   @id @default(uuid())
+  platform        String
+  date            DateTime
+  totalPosts      Int      @default(0)
+  reach           Int      @default(0)
+  impressions     Int      @default(0)
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  reposts         Int      @default(0)
+  clicks          Int      @default(0)
+  engagementRate  Float    @default(0)
+  followers       Int      @default(0)
+  followerGrowth  Int      @default(0)
+  createdAt       DateTime @default(now())
+}
+
+model Settings {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String @db.Text
+}
+
+model OAuthSession {
+  id        String   @id @default(uuid())
+  provider  String
+  pages     Json
+  status    String   @default("READY")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
