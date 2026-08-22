@@ -7,6 +7,7 @@ export function ContentComposer() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['LinkedIn']);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -95,20 +96,28 @@ export function ContentComposer() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    
+
+    // Show local blob URL instantly for preview (no upload needed)
+    const localPreview = URL.createObjectURL(file);
+    setPreviewUrl(localPreview);
+
     const formData = new FormData();
     formData.append('file', file);
-    
+
     try {
       const response = await axios.post('/api/media/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (response.data.success) {
-        setMediaUrl(response.data.data.url);
+        setMediaUrl(response.data.data.url); // DB-backed public URL for posting
+      } else {
+        alert('Failed to upload media: ' + (response.data.error || 'Unknown error'));
+        setPreviewUrl(null);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('File upload failed', error);
-      alert('Failed to upload media');
+      alert('Failed to upload media: ' + (error.response?.data?.error || error.message));
+      setPreviewUrl(null);
     }
   };
 
@@ -180,10 +189,13 @@ export function ContentComposer() {
                   Upload Image
                   <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                 </label>
-                {mediaUrl && (
-                  <div className="text-sm text-green-400 flex items-center gap-2">
-                    <span>✓ Media attached</span>
-                    <button onClick={() => setMediaUrl(null)} className="text-gray-500 hover:text-red-400">Remove</button>
+                {(previewUrl || mediaUrl) && (
+                  <div className="flex items-center gap-3">
+                    <img src={previewUrl || mediaUrl!} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-gray-700" />
+                    <div className="text-sm text-green-400 flex items-center gap-2">
+                      <span>✓ Media attached</span>
+                      <button onClick={() => { setMediaUrl(null); setPreviewUrl(null); }} className="text-gray-500 hover:text-red-400">Remove</button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -274,7 +286,7 @@ export function ContentComposer() {
 
                     {mediaUrl && PLATFORM_CAPABILITIES[activePreview]?.supportsImages && (
                       <div className="mt-3 rounded-2xl overflow-hidden border border-gray-700">
-                        <img src={mediaUrl} alt="Post media" className="w-full h-auto object-cover max-h-[500px]" />
+                        <img src={previewUrl || mediaUrl} alt="Post media" className="w-full h-auto object-cover max-h-[500px]" />
                       </div>
                     )}
                     
@@ -314,7 +326,7 @@ export function ContentComposer() {
                 
                 {mediaUrl && PLATFORM_CAPABILITIES[activePreview]?.supportsImages && (
                   <div className="mt-4 rounded-xl overflow-hidden border border-gray-800 bg-gray-950">
-                    <img src={mediaUrl} alt="Post media" className="w-full h-auto object-cover max-h-[400px]" />
+                    <img src={previewUrl || mediaUrl} alt="Post media" className="w-full h-auto object-cover max-h-[400px]" />
                   </div>
                 )}
                 
