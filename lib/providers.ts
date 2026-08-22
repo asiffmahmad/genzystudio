@@ -111,38 +111,89 @@ export class RealInstagramProvider implements SocialProvider {
       const igUserId = account.id.replace('instagram_', '');
       const graphVersion = process.env.META_GRAPH_API_VERSION || 'v21.0';
 
-      // Resolve the media URL — must be a publicly accessible HTTPS URL
-      // Instagram Graph API downloads the image from this URL
-      let imageUrl = mediaUrls[0];
+      let creationId: string;
 
-      // If it's a DB-backed URL (/api/media/<id>), use the full production URL
-      if (imageUrl.startsWith('/')) {
-        const base = process.env.NEXT_PUBLIC_APP_URL || process.env.BACKEND_URL || '';
-        imageUrl = `${base}${imageUrl}`;
+      // Load image binary from DB if stored there
+      const mediaUrl = mediaUrls[0];
+      let imageBuffer: Buffer | null = null;
+      let mimeType = 'image/jpeg';
+
+      if (mediaUrl.includes('/api/media/')) {
+        const assetId = mediaUrl.split('/api/media/')[1];
+        const asset = await prisma.mediaAsset.findUnique({ where: { id: assetId } });
+        if (asset) {
+          imageBuffer = asset.data as Buffer;
+          mimeType = asset.mimeType;
+        }
       }
 
-      console.log('[Instagram] Creating media container, imageUrl domain:', new URL(imageUrl).hostname);
+      if (imageBuffer) {
+        // Use Instagram Resumable Upload API — uploads binary directly, no public URL needed
+        const fileSize = imageBuffer.length;
 
-      // Step 1: Create Media Container
-      const containerRes = await axios.post(
-        `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
-        null,
-        {
-          params: {
-            image_url: imageUrl,
-            caption: content,
-            access_token: accessToken,
+        // Step 1: Initialize upload session
+        const initRes = await axios.post(
+          `https://rupload.facebook.com/ig-api-upload/${igUserId}`,
+          null,
+          {
+            headers: {
+              'Authorization': `OAuth ${accessToken}`,
+              'X-Instagram-Rupload-Params': JSON.stringify({
+                media_type: 'IMAGE',
+                upload_id: Date.now().toString(),
+              }),
+              'X-Entity-Type': mimeType,
+              'X-Entity-Length': fileSize.toString(),
+              'Offset': '0',
+              'Content-Type': 'application/octet-stream',
+            },
+            data: imageBuffer,
           }
-        }
-      );
+        );
 
-      const creationId = containerRes.data.id;
+        const uploadId = initRes.data.upload_id || initRes.data.id;
+
+        // Step 2: Create container using upload_id
+        const containerRes = await axios.post(
+          `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
+          null,
+          {
+            params: {
+              upload_id: uploadId,
+              caption: content,
+              access_token: accessToken,
+            }
+          }
+        );
+        creationId = containerRes.data.id;
+      } else {
+        // Fallback: URL method for externally hosted images
+        let imageUrl = mediaUrl;
+        if (imageUrl.startsWith('/')) {
+          const base = process.env.NEXT_PUBLIC_APP_URL || process.env.BACKEND_URL || '';
+          imageUrl = `${base}${imageUrl}`;
+        }
+
+        const containerRes = await axios.post(
+          `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
+          null,
+          {
+            params: {
+              image_url: imageUrl,
+              caption: content,
+              access_token: accessToken,
+            }
+          }
+        );
+        creationId = containerRes.data.id;
+      }
+
       console.log('[Instagram] Container created:', creationId);
 
-      // Step 2: Wait briefly then publish (Instagram recommends a small delay)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait for container to be ready
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Step 3: Publish Container
+      // Publish
       const publishRes = await axios.post(
         `https://graph.instagram.com/${graphVersion}/${igUserId}/media_publish`,
         null,
@@ -154,7 +205,7 @@ export class RealInstagramProvider implements SocialProvider {
         }
       );
 
-      return { success: true, url: `https://instagram.com/p/${publishRes.data.id}` }; // id here isn't the shortcode, but indicates success
+      return { success: true, url: `https://instagram.com/p/${publishRes.data.id}` };
     } catch (error: any) {
       console.error('Instagram Publish Error:', error.response?.data || error.message);
       const errorMsg = error.response?.data?.error?.message || error.message;
