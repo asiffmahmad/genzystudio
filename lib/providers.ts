@@ -208,7 +208,8 @@ export class RealInstagramProvider implements SocialProvider {
     } catch (error: any) {
       console.error('Instagram Publish Error:', error.response?.data || error.message);
       const errorMsg = error.response?.data?.error?.message || error.message;
-      return { success: false, error: `Instagram API Error: ${errorMsg}` };
+      const apiDetail = error.response?.data ? JSON.stringify(error.response.data) : '';
+      return { success: false, error: `Instagram API Error: ${errorMsg} | Detail: ${apiDetail}` };
     }
   }
 
