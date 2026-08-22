@@ -21,8 +21,11 @@ export async function GET(request: NextRequest) {
   } catch (err: any) {
     console.error('[Debug IG] Error during test publish:', err);
     return NextResponse.json({
+      success: false,
       error: err.message,
-      response: err.response?.data || null,
+      responseData: err.response?.data || null,
+      responseStatus: err.response?.status || null,
+      responseHeaders: err.response?.headers || null,
       stack: err.stack?.split('\n').slice(0, 5)
     }, { status: 500 });
   }
