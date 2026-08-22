@@ -96,3 +96,15 @@ export async function getContents() {
     return { success: false, error: 'Internal Server Error' };
   }
 }
+
+export async function deleteContent(contentId: string) {
+  try {
+    await prisma.content.delete({
+      where: { id: contentId }
+    });
+    return { success: true, message: 'Post deleted successfully from database.' };
+  } catch (error) {
+    console.error('Delete Content Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
