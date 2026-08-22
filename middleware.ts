@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const SESSION_TOKEN = 'gs_session_token';
 const VALID_TOKEN = 'genzy_studio_auth_34635bc';
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/login', '/privacy', '/accounts/meta-select'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
