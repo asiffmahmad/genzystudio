@@ -6,7 +6,7 @@ interface ScheduledPost {
   id: string;
   contentId: string;
   platform: string;
-  scheduledAt: string;
+  scheduledAt: Date | string;
   status: string;
   content?: { title: string };
 }
@@ -23,7 +23,7 @@ export function Calendar() {
         const end = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
         
         const { getScheduledPosts } = await import('@/actions/calendar');
-        const response = await getScheduledPosts(start, end);
+        const response = await getScheduledPosts(start.toISOString(), end.toISOString());
         if (response.success && response.data) {
           setPosts(response.data as ScheduledPost[]);
         }

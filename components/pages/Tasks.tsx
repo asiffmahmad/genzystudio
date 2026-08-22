@@ -8,7 +8,7 @@ interface Task {
   description: string;
   status: string;
   priority: string;
-  dueDate: string;
+  dueDate: Date | string | null;
   recurrenceType: string | null;
 }
 

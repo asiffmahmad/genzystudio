@@ -14,7 +14,7 @@ interface AiSuggestion {
   suggestedHashtags: string;
   potentialAudience: string;
   status: string;
-  createdAt: string;
+  createdAt: Date | string;
 }
 
 export function AiSuggestions() {

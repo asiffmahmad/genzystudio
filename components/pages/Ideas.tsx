@@ -9,7 +9,7 @@ interface Idea {
   description: string;
   status: string;
   tags: string;
-  createdAt: string;
+  createdAt: Date | string;
 }
 
 export function Ideas() {
