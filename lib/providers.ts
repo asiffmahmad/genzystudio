@@ -111,90 +111,36 @@ export class RealInstagramProvider implements SocialProvider {
       const igUserId = account.id.replace('instagram_', '');
       const graphVersion = process.env.META_GRAPH_API_VERSION || 'v21.0';
 
-      let creationId: string;
-
-      // Load image binary from DB if stored there
-      const mediaUrl = mediaUrls[0];
-      let imageBuffer: Buffer | null = null;
-      let mimeType = 'image/jpeg';
-
-      if (mediaUrl.includes('/api/media/')) {
-        const assetId = mediaUrl.split('/api/media/')[1];
-        const asset = await prisma.mediaAsset.findUnique({ where: { id: assetId } });
-        if (asset) {
-          imageBuffer = asset.data as Buffer;
-          mimeType = asset.mimeType;
-        }
+      let imageUrl = mediaUrls[0];
+      if (imageUrl.startsWith('/')) {
+        const base = process.env.NEXT_PUBLIC_APP_URL || process.env.BACKEND_URL || 'https://genzystudio.asiff.dev';
+        imageUrl = `${base}${imageUrl}`;
       }
 
-      if (imageBuffer) {
-        // Use Instagram Resumable Upload API — uploads binary directly, no public URL needed
-        const fileSize = imageBuffer.length;
+      console.log('[Instagram] Creating media container on graph.facebook.com, imageUrl:', imageUrl);
 
-        // Step 1: Initialize upload session
-        const initRes = await axios.post(
-          `https://rupload.facebook.com/ig-api-upload/${igUserId}`,
-          imageBuffer,
-          {
-            headers: {
-              'Authorization': `OAuth ${accessToken}`,
-              'X-Instagram-Rupload-Params': JSON.stringify({
-                media_type: 'IMAGE',
-                upload_id: `upload_${Date.now()}`,
-              }),
-              'X-Entity-Type': mimeType,
-              'X-Entity-Length': fileSize.toString(),
-              'Offset': '0',
-              'Content-Type': 'application/octet-stream',
-            }
+      // Step 1: Create Media Container
+      const containerRes = await axios.post(
+        `https://graph.facebook.com/${graphVersion}/${igUserId}/media`,
+        null,
+        {
+          params: {
+            image_url: imageUrl,
+            caption: content,
+            access_token: accessToken,
           }
-        );
-
-        const uploadId = initRes.data.upload_id || initRes.data.id;
-
-        // Step 2: Create container using upload_id
-        const containerRes = await axios.post(
-          `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
-          null,
-          {
-            params: {
-              upload_id: uploadId,
-              caption: content,
-              access_token: accessToken,
-            }
-          }
-        );
-        creationId = containerRes.data.id;
-      } else {
-        // Fallback: URL method for externally hosted images
-        let imageUrl = mediaUrl;
-        if (imageUrl.startsWith('/')) {
-          const base = process.env.NEXT_PUBLIC_APP_URL || process.env.BACKEND_URL || '';
-          imageUrl = `${base}${imageUrl}`;
         }
+      );
 
-        const containerRes = await axios.post(
-          `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
-          null,
-          {
-            params: {
-              image_url: imageUrl,
-              caption: content,
-              access_token: accessToken,
-            }
-          }
-        );
-        creationId = containerRes.data.id;
-      }
-
+      const creationId = containerRes.data.id;
       console.log('[Instagram] Container created:', creationId);
 
       // Wait for container to be ready
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 5000));
 
-      // Publish
+      // Step 2: Publish Container
       const publishRes = await axios.post(
-        `https://graph.instagram.com/${graphVersion}/${igUserId}/media_publish`,
+        `https://graph.facebook.com/${graphVersion}/${igUserId}/media_publish`,
         null,
         {
           params: {
