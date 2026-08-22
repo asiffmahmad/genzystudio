@@ -41,15 +41,15 @@ export function MetaPageSelectInner() {
 
     const fetchSession = async () => {
       try {
-        const { getFacebookSession } = await import('@/actions/accounts');
-        const response = await getFacebookSession(sessionId);
+        const res = await axios.get(`/api/oauth/facebook/get-session?sessionId=${sessionId}`);
+        const response = res.data;
         if (response.success && response.pages) {
           setPages(response.pages as Page[]);
         } else {
           setError(response.error || 'Session expired/invalid');
         }
       } catch (err: any) {
-        setError('Failed to load session details.');
+        setError(err.response?.data?.error || 'Failed to load session details.');
       } finally {
         setLoading(false);
       }
@@ -61,8 +61,11 @@ export function MetaPageSelectInner() {
   const handleSelectPage = async (pageId: string) => {
     setSelectingPageId(pageId);
     try {
-      const { selectFacebookPage } = await import('@/actions/accounts');
-      const response = await selectFacebookPage(sessionId!, pageId);
+      const res = await axios.post('/api/oauth/facebook/select-page', {
+        sessionId: sessionId!,
+        pageId: pageId,
+      });
+      const response = res.data;
       if (response.success) {
         router.push('/accounts');
       } else {
@@ -70,7 +73,7 @@ export function MetaPageSelectInner() {
         setSelectingPageId(null);
       }
     } catch (err: any) {
-      alert('Failed to process page selection.');
+      alert(err.response?.data?.error || 'Failed to process page selection.');
       setSelectingPageId(null);
     }
   };
