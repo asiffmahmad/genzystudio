@@ -13,6 +13,19 @@ export function ContentComposer() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [activePreview, setActivePreview] = useState<string>('LinkedIn');
   const [currentContentId, setCurrentContentId] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+  } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setNotification({ message, type });
+    // Keep errors open slightly longer for readability
+    const duration = type === 'error' ? 8000 : 4000;
+    setTimeout(() => {
+      setNotification(prev => prev && prev.message === message ? null : prev);
+    }, duration);
+  };
 
   const platforms = Object.keys(PLATFORM_CAPABILITIES);
 
@@ -41,13 +54,13 @@ export function ContentComposer() {
       });
       if (response.success && response.data) {
         setCurrentContentId(response.data.id);
-        alert('Draft saved successfully!');
+        showNotification('Draft saved successfully!', 'success');
       } else {
-        alert(response.error || 'Failed to save draft');
+        showNotification(response.error || 'Failed to save draft', 'error');
       }
     } catch (error) {
       console.error('Failed to save draft', error);
-      alert('Failed to save draft');
+      showNotification('Failed to save draft', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -55,7 +68,7 @@ export function ContentComposer() {
 
   const handlePublish = async () => {
     if (selectedPlatforms.length === 0) {
-      alert('Please select at least one platform to publish to.');
+      showNotification('Please select at least one platform to publish to.', 'error');
       return;
     }
     setIsPublishing(true);
@@ -80,14 +93,19 @@ export function ContentComposer() {
       // 2. Publish it immediately
       const response = await publishContent(contentId);
       if (response.success && response.results) {
-        const resultsText = response.results.map((r: any) => `${r.platform}: ${r.success ? 'Success ✅' : 'Failed ❌ - ' + r.error}`).join('\n');
-        alert(`Publishing Results:\n\n${resultsText}`);
+        const hasFailures = response.results.some((r: any) => !r.success);
+        const resultsText = response.results.map((r: any) => `${r.platform}: ${r.success ? 'Success ✅' : 'Failed ❌ (' + r.error + ')'}`).join('\n');
+        
+        showNotification(
+          `Publishing Completed!\n\n${resultsText}`, 
+          hasFailures ? 'error' : 'success'
+        );
       } else {
-        alert(response.error || 'Error publishing content.');
+        showNotification(response.error || 'Error publishing content.', 'error');
       }
     } catch (error: any) {
       console.error('Failed to publish', error);
-      alert(error.message || 'Failed to publish content');
+      showNotification(error.message || 'Failed to publish content', 'error');
     } finally {
       setIsPublishing(false);
     }
@@ -157,12 +175,12 @@ export function ContentComposer() {
       if (response.data.success) {
         setMediaUrl(response.data.data.url); // DB-backed public URL for posting
       } else {
-        alert('Failed to upload media: ' + (response.data.error || 'Unknown error'));
+        showNotification('Failed to upload media: ' + (response.data.error || 'Unknown error'), 'error');
         setPreviewUrl(null);
       }
     } catch (error: any) {
       console.error('File upload failed', error);
-      alert('Failed to upload media: ' + (error.response?.data?.error || error.message));
+      showNotification('Failed to upload media: ' + (error.response?.data?.error || error.message), 'error');
       setPreviewUrl(null);
     }
   };
@@ -386,6 +404,22 @@ export function ContentComposer() {
           </div>
         )}
       </div>
+
+      {notification && (
+        <div className={`fixed bottom-4 right-4 z-50 flex items-start gap-3 max-w-md px-4 py-3 rounded-lg border shadow-lg backdrop-blur-md transition-all duration-300 ${
+          notification.type === 'success' 
+            ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200' 
+            : notification.type === 'error' 
+              ? 'bg-rose-950/90 border-rose-500/50 text-rose-200' 
+              : 'bg-blue-950/90 border-blue-500/50 text-blue-200'
+        }`}>
+          <div className="text-lg leading-none mt-0.5">
+            {notification.type === 'success' ? '✓' : notification.type === 'error' ? '❌' : 'ℹ'}
+          </div>
+          <div className="text-sm font-medium whitespace-pre-line flex-1 leading-normal">{notification.message}</div>
+          <button onClick={() => setNotification(null)} className="text-xs opacity-50 hover:opacity-100 transition-opacity p-0.5 ml-2">✕</button>
+        </div>
+      )}
     </div>
   );
 }

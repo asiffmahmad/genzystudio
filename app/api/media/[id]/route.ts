@@ -9,9 +9,10 @@ async function getAsset(id: string) {
 // HEAD: Instagram's crawler checks this before downloading
 export async function HEAD(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const asset = await getAsset(params.id);
+  const { id } = await params;
+  const asset = await getAsset(id);
   if (!asset) return new NextResponse(null, { status: 404 });
   return new NextResponse(null, {
     status: 200,
@@ -27,10 +28,11 @@ export async function HEAD(
 // GET: Serve the image binary
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const asset = await getAsset(params.id);
+    const { id } = await params;
+    const asset = await getAsset(id);
 
     if (!asset) {
       return new NextResponse('Not found', { status: 404 });
