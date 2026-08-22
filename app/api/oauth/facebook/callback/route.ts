@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const error = searchParams.get('error');
   const error_description = searchParams.get('error_description');
+  const debugMode = searchParams.get('debug') === 'true';
 
   const frontendUrl = process.env.NEXT_PUBLIC_APP_URL
     || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
@@ -23,18 +24,39 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${frontendUrl}/accounts?error=no_code`);
   }
 
-  const appId = process.env.META_FACEBOOK_APP_ID!;
-  const appSecret = process.env.META_FACEBOOK_APP_SECRET!;
-  const redirectUri = process.env.META_FACEBOOK_REDIRECT_URI!;
+  const appId = process.env.META_FACEBOOK_APP_ID;
+  const appSecret = process.env.META_FACEBOOK_APP_SECRET;
+  const redirectUri = process.env.META_FACEBOOK_REDIRECT_URI;
+
+  if (!appId || !appSecret || !redirectUri) {
+    return NextResponse.json({
+      error: 'Missing env vars',
+      hasAppId: !!appId,
+      hasAppSecret: !!appSecret,
+      hasRedirectUri: !!redirectUri,
+    }, { status: 500 });
+  }
+
+  const steps: any[] = [];
 
   try {
+    // Step 1: Exchange code for token
+    steps.push({ step: 1, action: 'Exchanging code for access token' });
     const graphVersion = process.env.META_GRAPH_API_VERSION ? `${process.env.META_GRAPH_API_VERSION}/` : '';
-    const tokenRes = await axios.get(`https://graph.facebook.com/${graphVersion}oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`);
-    const userAccessToken = tokenRes.data.access_token;
+    const tokenUrl = `https://graph.facebook.com/${graphVersion}oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
     
+    const tokenRes = await axios.get(tokenUrl);
+    const userAccessToken = tokenRes.data.access_token;
+    steps.push({ step: 1, result: 'SUCCESS', hasToken: !!userAccessToken, tokenLength: userAccessToken?.length });
+    
+    // Step 2: Fetch pages
+    steps.push({ step: 2, action: 'Fetching user pages' });
     const pagesRes = await axios.get(`https://graph.facebook.com/${graphVersion}me/accounts?access_token=${userAccessToken}`);
     const pages = pagesRes.data.data;
+    steps.push({ step: 2, result: 'SUCCESS', pageCount: pages?.length || 0, pageNames: pages?.map((p: any) => p.name) });
 
+    // Step 3: Create session in database
+    steps.push({ step: 3, action: 'Creating OAuth session in database' });
     const session = await prisma.oAuthSession.create({
       data: {
         provider: 'Facebook',
@@ -42,11 +64,24 @@ export async function GET(request: NextRequest) {
         expiresAt: new Date(Date.now() + 10 * 60 * 1000)
       }
     });
+    steps.push({ step: 3, result: 'SUCCESS', sessionId: session.id });
 
-    return NextResponse.redirect(`${metaSelectUrl}?sessionId=${session.id}`);
+    // Step 4: Redirect to meta-select page
+    const redirectUrl = `${metaSelectUrl}?sessionId=${session.id}`;
+    steps.push({ step: 4, action: 'Redirecting to meta-select', redirectUrl });
+
+    return NextResponse.redirect(redirectUrl);
   } catch (err: any) {
     console.error('Facebook OAuth Error:', err.response?.data || err.message);
-    const errorMsg = err.response?.data?.error?.message || 'facebook_auth_failed';
-    return NextResponse.redirect(`${frontendUrl}/accounts?error=${encodeURIComponent(errorMsg)}`);
+    
+    const errorDetail = {
+      message: err.message,
+      apiError: err.response?.data?.error || null,
+      apiStatus: err.response?.status || null,
+      steps,
+    };
+
+    // Return JSON error so we can see exactly what failed
+    return NextResponse.json({ error: 'Facebook OAuth callback failed', detail: errorDetail }, { status: 500 });
   }
 }
