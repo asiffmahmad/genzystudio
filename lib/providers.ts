@@ -109,22 +109,50 @@ export class RealInstagramProvider implements SocialProvider {
 
       const accessToken = decrypt(account.encryptedAccessToken);
       const igUserId = account.id.replace('instagram_', '');
-      const publicMediaUrl = getPublicMediaUrl(mediaUrls[0]);
+      const graphVersion = process.env.META_GRAPH_API_VERSION || 'v21.0';
 
-      // Step 1: Create Media Container using Instagram Graph API
-      const containerRes = await axios.post(`https://graph.instagram.com/v19.0/${igUserId}/media`, {
-        image_url: publicMediaUrl,
-        caption: content,
-        access_token: accessToken
-      });
+      // Resolve the media URL — must be a publicly accessible HTTPS URL
+      // Instagram Graph API downloads the image from this URL
+      let imageUrl = mediaUrls[0];
+
+      // If it's a DB-backed URL (/api/media/<id>), use the full production URL
+      if (imageUrl.startsWith('/')) {
+        const base = process.env.NEXT_PUBLIC_APP_URL || process.env.BACKEND_URL || '';
+        imageUrl = `${base}${imageUrl}`;
+      }
+
+      console.log('[Instagram] Creating media container, imageUrl domain:', new URL(imageUrl).hostname);
+
+      // Step 1: Create Media Container
+      const containerRes = await axios.post(
+        `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
+        null,
+        {
+          params: {
+            image_url: imageUrl,
+            caption: content,
+            access_token: accessToken,
+          }
+        }
+      );
 
       const creationId = containerRes.data.id;
+      console.log('[Instagram] Container created:', creationId);
 
-      // Step 2: Publish Container
-      const publishRes = await axios.post(`https://graph.instagram.com/v19.0/${igUserId}/media_publish`, {
-        creation_id: creationId,
-        access_token: accessToken
-      });
+      // Step 2: Wait briefly then publish (Instagram recommends a small delay)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Step 3: Publish Container
+      const publishRes = await axios.post(
+        `https://graph.instagram.com/${graphVersion}/${igUserId}/media_publish`,
+        null,
+        {
+          params: {
+            creation_id: creationId,
+            access_token: accessToken,
+          }
+        }
+      );
 
       return { success: true, url: `https://instagram.com/p/${publishRes.data.id}` }; // id here isn't the shortcode, but indicates success
     } catch (error: any) {
