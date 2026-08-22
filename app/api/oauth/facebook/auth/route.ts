@@ -17,7 +17,8 @@ export async function GET() {
   }
 
   const scope = process.env.META_FACEBOOK_SCOPES || 'pages_show_list,pages_manage_posts';
-  const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=facebook_auth&scope=${encodeURIComponent(scope)}`;
+  const graphVersion = process.env.META_GRAPH_API_VERSION || 'v19.0';
+  const authUrl = `https://www.facebook.com/${graphVersion}/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=facebook_auth&scope=${encodeURIComponent(scope)}`;
 
   return NextResponse.redirect(authUrl);
 }
