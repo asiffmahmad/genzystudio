@@ -41,17 +41,24 @@ export async function GET(request: NextRequest) {
 
   try {
     // Step 1: Exchange code for token
-    steps.push({ step: 1, action: 'Exchanging code for access token' });
-    const graphVersion = process.env.META_GRAPH_API_VERSION ? `${process.env.META_GRAPH_API_VERSION}/` : '';
-    const tokenUrl = `https://graph.facebook.com/${graphVersion}oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`;
+    steps.push({ step: 1, action: 'Exchanging code for access token (POST)' });
+    const graphVersion = process.env.META_GRAPH_API_VERSION || 'v21.0';
+    const tokenUrl = `https://graph.facebook.com/${graphVersion}/oauth/access_token`;
     
-    const tokenRes = await axios.get(tokenUrl);
+    const tokenRes = await axios.post(tokenUrl, null, {
+      params: {
+        client_id: appId,
+        client_secret: appSecret,
+        redirect_uri: redirectUri,
+        code: code,
+      }
+    });
     const userAccessToken = tokenRes.data.access_token;
     steps.push({ step: 1, result: 'SUCCESS', hasToken: !!userAccessToken, tokenLength: userAccessToken?.length });
     
     // Step 2: Fetch pages
     steps.push({ step: 2, action: 'Fetching user pages' });
-    const pagesRes = await axios.get(`https://graph.facebook.com/${graphVersion}me/accounts?access_token=${userAccessToken}`);
+    const pagesRes = await axios.get(`https://graph.facebook.com/${graphVersion}/me/accounts?access_token=${userAccessToken}`);
     const pages = pagesRes.data.data;
     steps.push({ step: 2, result: 'SUCCESS', pageCount: pages?.length || 0, pageNames: pages?.map((p: any) => p.name) });
 
