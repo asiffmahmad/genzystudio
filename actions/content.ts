@@ -99,12 +99,19 @@ export async function getContents() {
 
 export async function deleteContent(contentId: string) {
   try {
+    // 1. Manually delete variants first to avoid foreign key violations
+    await prisma.contentVariant.deleteMany({
+      where: { contentId: contentId }
+    });
+
+    // 2. Delete the master content record
     await prisma.content.delete({
       where: { id: contentId }
     });
+
     return { success: true, message: 'Post deleted successfully from database.' };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Delete Content Error:', error);
-    return { success: false, error: 'Internal Server Error' };
+    return { success: false, error: error.message || 'Internal Server Error' };
   }
 }
