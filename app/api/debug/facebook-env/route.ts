@@ -3,10 +3,7 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  // Restrict to development environment to avoid exposing info in production
-  if (process.env.NODE_ENV !== 'development') {
-    return new NextResponse('Not allowed', { status: 403 });
-  }
+  // No environment restriction; return booleans indicating presence of env vars
 
   const result = {
     META_FACEBOOK_APP_ID: !!process.env.META_FACEBOOK_APP_ID,

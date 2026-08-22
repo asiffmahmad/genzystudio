@@ -2,12 +2,12 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const appId = process.env.META_APP_ID;
+  const appId = process.env.META_FACEBOOK_APP_ID;
   const redirectUri = process.env.META_FACEBOOK_REDIRECT_URI;
 
   if (!appId || !redirectUri) {
     const missing = [
-      !appId && 'META_APP_ID',
+      !appId && 'META_FACEBOOK_APP_ID',
       !redirectUri && 'META_FACEBOOK_REDIRECT_URI',
     ].filter(Boolean);
     return new NextResponse(
