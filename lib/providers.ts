@@ -30,6 +30,7 @@ export class RealFacebookProvider implements SocialProvider {
 
       const accessToken = decrypt(account.encryptedAccessToken);
       const pageId = account.id.replace('facebook_', '');
+      const graphVersion = process.env.META_GRAPH_API_VERSION || 'v21.0';
 
       const payload: any = {
         message: content,
@@ -38,10 +39,10 @@ export class RealFacebookProvider implements SocialProvider {
 
       if (mediaUrls && mediaUrls.length > 0) {
         payload.url = getPublicMediaUrl(mediaUrls[0]); // Attach first image
-        const res = await axios.post(`https://graph.facebook.com/v19.0/${pageId}/photos`, payload);
+        const res = await axios.post(`https://graph.facebook.com/${graphVersion}/${pageId}/photos`, payload);
         return { success: true, url: `https://facebook.com/${res.data.post_id || res.data.id}` };
       } else {
-        const res = await axios.post(`https://graph.facebook.com/v19.0/${pageId}/feed`, payload);
+        const res = await axios.post(`https://graph.facebook.com/${graphVersion}/${pageId}/feed`, payload);
         return { success: true, url: `https://facebook.com/${res.data.id}` };
       }
     } catch (error: any) {

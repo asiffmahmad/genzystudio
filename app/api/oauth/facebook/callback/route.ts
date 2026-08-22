@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error');
   const error_description = searchParams.get('error_description');
 
-  const frontendUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:5001';
+  const frontendUrl = process.env.NEXT_PUBLIC_APP_URL
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : null)
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null)
+    || 'http://localhost:5001';
   const metaSelectUrl = `${frontendUrl}/accounts/meta-select`;
 
   if (error) {

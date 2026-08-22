@@ -177,8 +177,9 @@ model Settings {
 
 model OAuthSession {
   id        String   @id @default(uuid())
+  provider  String   @default("Facebook")
   pages     Json
-  token    String?    @db.Text
+  token     String?  @db.Text
   status    String   @default("READY")
   expiresAt DateTime
   createdAt DateTime @default(now())
