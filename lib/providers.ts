@@ -38,9 +38,41 @@ export class RealFacebookProvider implements SocialProvider {
       };
 
       if (mediaUrls && mediaUrls.length > 0) {
-        payload.url = getPublicMediaUrl(mediaUrls[0]); // Attach first image
-        const res = await axios.post(`https://graph.facebook.com/${graphVersion}/${pageId}/photos`, payload);
-        return { success: true, url: `https://facebook.com/${res.data.post_id || res.data.id}` };
+        // Fetch image binary from DB and upload directly to Facebook (URL method often fails)
+        const mediaUrl = mediaUrls[0];
+        let imageBuffer: Buffer | null = null;
+        let mimeType = 'image/jpeg';
+
+        if (mediaUrl.includes('/api/media/')) {
+          // Extract asset ID from URL and load from DB
+          const assetId = mediaUrl.split('/api/media/')[1];
+          const asset = await prisma.mediaAsset.findUnique({ where: { id: assetId } });
+          if (asset) {
+            imageBuffer = asset.data as Buffer;
+            mimeType = asset.mimeType;
+          }
+        }
+
+        if (imageBuffer) {
+          // Upload binary directly to Facebook using multipart form
+          const FormData = (await import('form-data')).default;
+          const form = new FormData();
+          form.append('source', imageBuffer, { filename: 'image.jpg', contentType: mimeType });
+          form.append('message', content);
+          form.append('access_token', accessToken);
+
+          const res = await axios.post(
+            `https://graph.facebook.com/${graphVersion}/${pageId}/photos`,
+            form,
+            { headers: form.getHeaders() }
+          );
+          return { success: true, url: `https://facebook.com/${res.data.post_id || res.data.id}` };
+        } else {
+          // Fallback: try URL method
+          payload.url = getPublicMediaUrl(mediaUrl);
+          const res = await axios.post(`https://graph.facebook.com/${graphVersion}/${pageId}/photos`, payload);
+          return { success: true, url: `https://facebook.com/${res.data.post_id || res.data.id}` };
+        }
       } else {
         const res = await axios.post(`https://graph.facebook.com/${graphVersion}/${pageId}/feed`, payload);
         return { success: true, url: `https://facebook.com/${res.data.id}` };
