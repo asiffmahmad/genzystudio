@@ -33,61 +33,44 @@ export async function GET(request: NextRequest) {
   const steps: any[] = [];
 
   try {
-    // Step 1: Exchange code for user access token on graph.facebook.com
-    steps.push({ step: 1, action: 'Exchanging code for Facebook User Access Token' });
+    // Step 1: Exchange code for short-lived token using Instagram's endpoint (NOT Facebook's)
+    steps.push({ step: 1, action: 'Exchanging code for Instagram access token' });
     const tokenRes = await axios.post(
-      `https://graph.facebook.com/v21.0/oauth/access_token`,
+      'https://api.instagram.com/oauth/access_token',
       new URLSearchParams({
         client_id: appId,
         client_secret: appSecret,
+        grant_type: 'authorization_code',
         redirect_uri: redirectUri,
         code: code,
       }),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
 
-    const userAccessToken = tokenRes.data.access_token;
-    steps.push({ step: 1, result: 'SUCCESS' });
+    const shortLivedToken = tokenRes.data.access_token;
+    const igUserId = tokenRes.data.user_id;
+    steps.push({ step: 1, result: 'SUCCESS', igUserId });
 
-    // Step 2: Fetch Facebook pages linked to this user to find the linked Instagram Business account
-    steps.push({ step: 2, action: 'Fetching linked Facebook Pages and Instagram accounts' });
-    const pagesRes = await axios.get(
-      `https://graph.facebook.com/v21.0/me/accounts?fields=instagram_business_account,name,access_token&access_token=${userAccessToken}`
+    // Step 2: Exchange short-lived token for long-lived token
+    steps.push({ step: 2, action: 'Exchanging for long-lived token' });
+    const longTokenRes = await axios.get(
+      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${shortLivedToken}`
     );
-    const pages = pagesRes.data.data;
+    const longLivedToken = longTokenRes.data.access_token;
+    steps.push({ step: 2, result: 'SUCCESS' });
 
-    if (!pages || pages.length === 0) {
-      return NextResponse.json({
-        error: 'No Facebook Pages found associated with this account.',
-        steps
-      }, { status: 404 });
-    }
-
-    const igAccount = pages.find((p: any) => p.instagram_business_account);
-
-    if (!igAccount) {
-      return NextResponse.json({
-        error: 'No linked Instagram Professional/Business Account found on your Facebook Pages.',
-        availablePages: pages.map((p: any) => ({ name: p.name, hasInstagram: !!p.instagram_business_account })),
-        steps
-      }, { status: 404 });
-    }
-
-    const igId = igAccount.instagram_business_account.id;
-    const pageToken = igAccount.access_token; // Page Access Token is used to act on behalf of the page/Instagram account
-    steps.push({ step: 2, result: 'SUCCESS', igId });
-
-    // Step 3: Fetch Instagram username
-    steps.push({ step: 3, action: 'Fetching Instagram username' });
+    // Step 3: Fetch Instagram account info
+    steps.push({ step: 3, action: 'Fetching Instagram account info' });
     const igRes = await axios.get(
-      `https://graph.facebook.com/v21.0/${igId}?fields=username&access_token=${pageToken}`
+      `https://graph.instagram.com/v21.0/me?fields=id,username,account_type&access_token=${longLivedToken}`
     );
     const igUsername = igRes.data.username || 'Instagram Account';
+    const igId = igRes.data.id || igUserId;
     steps.push({ step: 3, result: 'SUCCESS', username: igUsername });
 
     // Step 4: Save to database
     steps.push({ step: 4, action: 'Saving to database' });
-    const encryptedToken = encrypt(pageToken);
+    const encryptedToken = encrypt(longLivedToken);
 
     await prisma.socialAccount.upsert({
       where: { id: `instagram_${igId}` },
