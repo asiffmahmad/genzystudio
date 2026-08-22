@@ -134,20 +134,19 @@ export class RealInstagramProvider implements SocialProvider {
         // Step 1: Initialize upload session
         const initRes = await axios.post(
           `https://rupload.facebook.com/ig-api-upload/${igUserId}`,
-          null,
+          imageBuffer,
           {
             headers: {
               'Authorization': `OAuth ${accessToken}`,
               'X-Instagram-Rupload-Params': JSON.stringify({
                 media_type: 'IMAGE',
-                upload_id: Date.now().toString(),
+                upload_id: `upload_${Date.now()}`,
               }),
               'X-Entity-Type': mimeType,
               'X-Entity-Length': fileSize.toString(),
               'Offset': '0',
               'Content-Type': 'application/octet-stream',
-            },
-            data: imageBuffer,
+            }
           }
         );
 
