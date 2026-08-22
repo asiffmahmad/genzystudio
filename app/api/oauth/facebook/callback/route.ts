@@ -25,10 +25,11 @@ export async function GET(request: NextRequest) {
   const redirectUri = process.env.META_FACEBOOK_REDIRECT_URI!;
 
   try {
-    const tokenRes = await axios.get(`https://graph.facebook.com/v19.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`);
+    const graphVersion = process.env.META_GRAPH_API_VERSION ? `${process.env.META_GRAPH_API_VERSION}/` : '';
+    const tokenRes = await axios.get(`https://graph.facebook.com/${graphVersion}oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`);
     const userAccessToken = tokenRes.data.access_token;
     
-    const pagesRes = await axios.get(`https://graph.facebook.com/v19.0/me/accounts?access_token=${userAccessToken}`);
+    const pagesRes = await axios.get(`https://graph.facebook.com/${graphVersion}me/accounts?access_token=${userAccessToken}`);
     const pages = pagesRes.data.data;
 
     const session = await prisma.oAuthSession.create({
