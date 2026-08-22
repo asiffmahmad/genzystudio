@@ -148,7 +148,7 @@ export function Accounts() {
                     <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-800">
                       <div className="text-sm font-medium text-gray-300">@{connectedAccount.accountName}</div>
                       <div className="text-xs text-gray-500 mt-1 mb-3">
-                        Last connected: {new Date(connectedAccount.lastSuccessfulConnection).toLocaleDateString()}
+                        Last connected: {connectedAccount.lastSuccessfulConnection ? new Date(connectedAccount.lastSuccessfulConnection).toLocaleDateString() : 'Never'}
                       </div>
                       <button
                         onClick={async () => {
