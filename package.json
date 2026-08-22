@@ -1,22 +1,32 @@
 {
-  "name": "genzystudio",
-  "version": "1.0.0",
-  "description": "GENZYSTUDIO monorepo",
-  "main": "index.js",
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
+  "name": "next-temp",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
-    "dev": "npm run dev --workspaces",
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
-    "postinstall": "cd backend && npx prisma generate"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
   },
-  "keywords": [],
-  "author": "GenzyDev",
-  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "axios": "^1.19.0",
+    "date-fns": "^4.4.0",
+    "lucide-react": "^1.33.0",
+    "next": "16.3.2",
+    "prisma": "^5.22.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router-dom": "^6.30.6"
+  },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5"
   }
 }
