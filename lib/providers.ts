@@ -117,11 +117,11 @@ export class RealInstagramProvider implements SocialProvider {
         imageUrl = `${base}${imageUrl}`;
       }
 
-      console.log('[Instagram] Creating media container on graph.facebook.com, imageUrl:', imageUrl);
+      console.log('[Instagram] Creating media container on graph.instagram.com, imageUrl:', imageUrl);
 
       // Step 1: Create Media Container
       const containerRes = await axios.post(
-        `https://graph.facebook.com/${graphVersion}/${igUserId}/media`,
+        `https://graph.instagram.com/${graphVersion}/${igUserId}/media`,
         null,
         {
           params: {
@@ -140,7 +140,7 @@ export class RealInstagramProvider implements SocialProvider {
 
       // Step 2: Publish Container
       const publishRes = await axios.post(
-        `https://graph.facebook.com/${graphVersion}/${igUserId}/media_publish`,
+        `https://graph.instagram.com/${graphVersion}/${igUserId}/media_publish`,
         null,
         {
           params: {

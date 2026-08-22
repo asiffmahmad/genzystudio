@@ -93,6 +93,40 @@ export function ContentComposer() {
     }
   };
 
+  const convertToJpeg = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Failed to get canvas context'));
+            return;
+          }
+          // Fill background with white in case PNG has transparency
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error('Canvas toBlob returned null'));
+            }
+          }, 'image/jpeg', 0.9);
+        };
+        img.onerror = () => reject(new Error('Failed to load image element'));
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
@@ -101,8 +135,20 @@ export function ContentComposer() {
     const localPreview = URL.createObjectURL(file);
     setPreviewUrl(localPreview);
 
+    let fileToUpload = file;
+    if (file.type.startsWith('image/') && file.type !== 'image/jpeg') {
+      try {
+        const jpegBlob = await convertToJpeg(file);
+        const fileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+        fileToUpload = new File([jpegBlob], fileName, { type: 'image/jpeg' });
+        console.log('[ContentComposer] Converted image to JPEG for Instagram compatibility:', fileName);
+      } catch (err) {
+        console.warn('[ContentComposer] Failed to convert image to JPEG, uploading original format', err);
+      }
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', fileToUpload);
 
     try {
       const response = await axios.post('/api/media/upload', formData, {
