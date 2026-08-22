@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const appId = process.env.META_FACEBOOK_APP_ID;
+  const appId = process.env.META_APP_ID;
   const redirectUri = process.env.META_FACEBOOK_REDIRECT_URI;
 
   if (!appId || !redirectUri) {
@@ -16,9 +16,9 @@ export async function GET() {
     );
   }
 
-  const scope = process.env.META_FACEBOOK_SCOPES || 'pages_show_list,pages_manage_posts';
-  // Facebook OAuth dialog does not require a Graph API version in the URL.
-  const authUrl = `https://www.facebook.com/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=facebook_auth&scope=${encodeURIComponent(scope)}`;
+  const configId = process.env.META_FACEBOOK_CONFIG_ID;
+  // Facebook Login for Business uses config_id instead of scopes
+  const authUrl = `https://www.facebook.com/dialog/oauth?client_id=${appId}\u0026redirect_uri=${encodeURIComponent(redirectUri)}\u0026state=facebook_auth\u0026config_id=${configId}\u0026response_type=code\u0026override_default_response_type=true`;
 
   return NextResponse.redirect(authUrl);
 }
