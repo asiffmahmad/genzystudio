@@ -7,7 +7,7 @@ export async function GET() {
 
   if (!appId || !redirectUri) {
     const missing = [
-      !appId && 'META_FACEBOOK_APP_ID',
+      !appId && 'META_APP_ID',
       !redirectUri && 'META_FACEBOOK_REDIRECT_URI',
     ].filter(Boolean);
     return new NextResponse(
