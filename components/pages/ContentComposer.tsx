@@ -75,6 +75,10 @@ export function ContentComposer() {
       showNotification('Please select at least one platform to publish to.', 'error');
       return;
     }
+    if (selectedPlatforms.includes('Instagram') && !mediaUrl) {
+      showNotification('Instagram requires an image or video to be uploaded.', 'error');
+      return;
+    }
     setIsPublishing(true);
     try {
       const { createContent, publishContent } = await import('@/actions/content');
@@ -122,6 +126,10 @@ export function ContentComposer() {
     }
     if (selectedPlatforms.length === 0) {
       showNotification('Please select at least one platform to schedule.', 'error');
+      return;
+    }
+    if (selectedPlatforms.includes('Instagram') && !mediaUrl) {
+      showNotification('Instagram requires an image or video to be uploaded.', 'error');
       return;
     }
     setIsScheduling(true);
