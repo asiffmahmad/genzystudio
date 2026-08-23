@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { getContents, deleteContent } from '@/actions/content';
+import { getContents, deleteContent, publishContent, updateContent, updateScheduledTime, getScheduledTime } from '@/actions/content';
 
 interface PublishedHistoryProps {
   filterStatus?: 'PUBLISHED' | 'DRAFT' | 'SCHEDULED';
@@ -12,14 +12,24 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState<{
     message: string;
-    type: 'success' | 'error';
+    type: 'success' | 'error' | 'info';
   } | null>(null);
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
+  // Edit Modal States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editScheduledAt, setEditScheduledAt] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
     setNotification({ message, type });
+    // Keep errors open slightly longer for readability
+    const duration = type === 'error' ? 8000 : 4000;
     setTimeout(() => {
       setNotification(prev => prev && prev.message === message ? null : prev);
-    }, 4000);
+    }, duration);
   };
 
   const fetchPublished = async () => {
@@ -27,7 +37,6 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
     try {
       const response = await getContents();
       if (response.success && response.data) {
-        // Filter for matching status
         setPostedContents(response.data.filter((item: any) => item.status === filterStatus));
       } else {
         showNotification(response.error || 'Failed to fetch posts', 'error');
@@ -45,7 +54,7 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
   }, [filterStatus]);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this post from the database? This action is permanent and cannot be undone.')) {
+    if (!confirm('Are you sure you want to delete this post from the database? This action is permanent.')) {
       return;
     }
     // Optimistic delete
@@ -63,6 +72,82 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
       console.error('Error deleting post:', error);
       showNotification('Failed to delete post', 'error');
       fetchPublished();
+    }
+  };
+
+  const handlePublishNow = async (id: string) => {
+    showNotification('Publishing post now...', 'info');
+    try {
+      const response = await publishContent(id);
+      if (response.success && response.results) {
+        const hasFailures = response.results.some((r: any) => !r.success);
+        const resultsText = response.results.map((r: any) => `${r.platform}: ${r.success ? 'Success ✅' : 'Failed ❌ (' + r.error + ')'}`).join('\n');
+        showNotification(`Publishing completed!\n\n${resultsText}`, hasFailures ? 'error' : 'success');
+        fetchPublished();
+      } else {
+        showNotification(response.error || 'Failed to publish post', 'error');
+      }
+    } catch (error) {
+      console.error('Error publishing post:', error);
+      showNotification('Failed to publish post', 'error');
+    }
+  };
+
+  const handleOpenEdit = async (post: any) => {
+    setEditingPostId(post.id);
+    setEditTitle(post.title || '');
+    setEditContent(post.content || '');
+    setEditScheduledAt('');
+    setShowEditModal(true);
+
+    if (filterStatus === 'SCHEDULED') {
+      try {
+        const timeRes = await getScheduledTime(post.id);
+        if (timeRes.success && timeRes.data) {
+          const localDateTime = new Date(timeRes.data).toISOString().slice(0, 16);
+          setEditScheduledAt(localDateTime);
+        }
+      } catch (err) {
+        console.error('Failed to get scheduled time', err);
+      }
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPostId) return;
+    setIsSavingEdit(true);
+    try {
+      // 1. Update text content
+      const contentRes = await updateContent(editingPostId, {
+        title: editTitle,
+        content: editContent
+      });
+
+      if (!contentRes.success) {
+        showNotification(contentRes.error || 'Failed to update content', 'error');
+        setIsSavingEdit(false);
+        return;
+      }
+
+      // 2. If scheduled, update schedule time
+      if (filterStatus === 'SCHEDULED' && editScheduledAt) {
+        const scheduleRes = await updateScheduledTime(editingPostId, editScheduledAt);
+        if (!scheduleRes.success) {
+          showNotification(scheduleRes.error || 'Failed to update scheduled time', 'error');
+          setIsSavingEdit(false);
+          return;
+        }
+      }
+
+      showNotification('Post updated successfully!', 'success');
+      setShowEditModal(false);
+      fetchPublished();
+    } catch (err) {
+      console.error('Save Edit Error:', err);
+      showNotification('Failed to update post details', 'error');
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -112,12 +197,30 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
                 </div>
               </div>
               
-              <button
-                onClick={() => handleDelete(post.id)}
-                className="px-4 py-2 bg-red-950/60 border border-red-800/40 hover:bg-red-900 hover:text-white text-red-300 rounded-lg transition-colors font-medium text-sm flex items-center gap-2 self-stretch md:self-auto justify-center"
-              >
-                🗑️ Delete from DB
-              </button>
+              <div className="flex flex-wrap gap-2 self-stretch md:self-auto justify-end">
+                {(filterStatus === 'DRAFT' || filterStatus === 'SCHEDULED') && (
+                  <>
+                    <button
+                      onClick={() => handlePublishNow(post.id)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-sm flex items-center gap-1 justify-center"
+                    >
+                      🚀 Publish Now
+                    </button>
+                    <button
+                      onClick={() => handleOpenEdit(post)}
+                      className="px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors font-medium text-sm flex items-center gap-1 justify-center"
+                    >
+                      ✏️ Edit
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => handleDelete(post.id)}
+                  className="px-4 py-2 bg-red-950/60 border border-red-800/40 hover:bg-red-900 hover:text-white text-red-300 rounded-lg transition-colors font-medium text-sm flex items-center gap-1 justify-center"
+                >
+                  🗑️ Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -125,14 +228,89 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
         <div className="text-gray-400 py-12 text-center">No posts found with this status.</div>
       )}
 
+      {/* Edit Post Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-lg font-medium text-gray-200">
+                Edit {filterStatus === 'SCHEDULED' ? 'Scheduled' : 'Draft'} Post
+              </h3>
+              <button 
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-500 hover:text-gray-300 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Title</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Content</label>
+                <textarea 
+                  rows={6}
+                  required
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-100 focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                />
+              </div>
+
+              {filterStatus === 'SCHEDULED' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-1">Scheduled Date & Time</label>
+                  <input 
+                    type="datetime-local" 
+                    required
+                    value={editScheduledAt}
+                    onChange={(e) => setEditScheduledAt(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
+                  />
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end border-t border-gray-800 pt-4 mt-2">
+                <button 
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {notification && (
         <div className={`fixed bottom-4 right-4 z-50 flex items-start gap-3 max-w-md px-4 py-3 rounded-lg border shadow-lg backdrop-blur-md transition-all duration-300 ${
           notification.type === 'success' 
             ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200' 
-            : 'bg-rose-950/90 border-rose-500/50 text-rose-200'
+            : notification.type === 'error' 
+              ? 'bg-rose-950/90 border-rose-500/50 text-rose-200' 
+              : 'bg-blue-950/90 border-blue-500/50 text-blue-200'
         }`}>
           <div className="text-lg leading-none mt-0.5">
-            {notification.type === 'success' ? '✓' : '❌'}
+            {notification.type === 'success' ? '✓' : notification.type === 'error' ? '❌' : 'ℹ'}
           </div>
           <div className="text-sm font-medium whitespace-pre-line flex-1 leading-normal">{notification.message}</div>
           <button onClick={() => setNotification(null)} className="text-xs opacity-50 hover:opacity-100 transition-opacity p-0.5 ml-2">✕</button>

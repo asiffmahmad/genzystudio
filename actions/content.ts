@@ -158,3 +158,47 @@ export async function scheduleContent(contentId: string, scheduledAt: string) {
     return { success: false, error: 'Internal Server Error' };
   }
 }
+
+export async function updateScheduledTime(contentId: string, scheduledAt: string) {
+  try {
+    const scheduledDate = new Date(scheduledAt);
+    await prisma.scheduledPost.updateMany({
+      where: { contentId: contentId },
+      data: { scheduledAt: scheduledDate }
+    });
+    return { success: true, message: 'Scheduled time updated successfully.' };
+  } catch (error) {
+    console.error('Update Scheduled Time Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
+
+export async function updateContent(contentId: string, data: { title: string; content: string }) {
+  try {
+    const { title, content } = data;
+    await prisma.content.update({
+      where: { id: contentId },
+      data: { title, content }
+    });
+    await prisma.contentVariant.updateMany({
+      where: { contentId: contentId },
+      data: { content: content }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Update Content Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
+
+export async function getScheduledTime(contentId: string) {
+  try {
+    const post = await prisma.scheduledPost.findFirst({
+      where: { contentId: contentId }
+    });
+    return { success: true, data: post ? post.scheduledAt : null };
+  } catch (error) {
+    console.error('Get Scheduled Time Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
