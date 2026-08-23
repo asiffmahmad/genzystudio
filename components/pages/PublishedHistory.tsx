@@ -104,7 +104,13 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
       try {
         const timeRes = await getScheduledTime(post.id);
         if (timeRes.success && timeRes.data) {
-          const localDateTime = new Date(timeRes.data).toISOString().slice(0, 16);
+          const date = new Date(timeRes.data);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hours = String(date.getHours()).padStart(2, '0');
+          const minutes = String(date.getMinutes()).padStart(2, '0');
+          const localDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
           setEditScheduledAt(localDateTime);
         }
       } catch (err) {
@@ -132,7 +138,8 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
 
       // 2. If scheduled, update schedule time
       if (filterStatus === 'SCHEDULED' && editScheduledAt) {
-        const scheduleRes = await updateScheduledTime(editingPostId, editScheduledAt);
+        const isoString = new Date(editScheduledAt).toISOString();
+        const scheduleRes = await updateScheduledTime(editingPostId, isoString);
         if (!scheduleRes.success) {
           showNotification(scheduleRes.error || 'Failed to update scheduled time', 'error');
           setIsSavingEdit(false);

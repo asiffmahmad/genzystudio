@@ -142,7 +142,9 @@ export function ContentComposer() {
       const contentId = saveResponse.data.id;
       setCurrentContentId(contentId);
 
-      const response = await scheduleContent(contentId, scheduledAt);
+      // Convert local date string (e.g. 2026-08-23T22:40) to proper localized ISO string
+      const isoString = new Date(scheduledAt).toISOString();
+      const response = await scheduleContent(contentId, isoString);
       if (response.success) {
         showNotification('Post scheduled successfully!', 'success');
         setShowScheduleInput(false);
