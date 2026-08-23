@@ -99,12 +99,17 @@ export async function getContents() {
 
 export async function deleteContent(contentId: string) {
   try {
-    // 1. Manually delete variants first to avoid foreign key violations
+    // 1. Delete scheduled posts from ScheduledPost table
+    await prisma.scheduledPost.deleteMany({
+      where: { contentId: contentId }
+    });
+
+    // 2. Manually delete variants first to avoid foreign key violations
     await prisma.contentVariant.deleteMany({
       where: { contentId: contentId }
     });
 
-    // 2. Delete the master content record
+    // 3. Delete the master content record
     await prisma.content.delete({
       where: { id: contentId }
     });
@@ -113,5 +118,43 @@ export async function deleteContent(contentId: string) {
   } catch (error: any) {
     console.error('Delete Content Error:', error);
     return { success: false, error: error.message || 'Internal Server Error' };
+  }
+}
+
+export async function scheduleContent(contentId: string, scheduledAt: string) {
+  try {
+    const content = await prisma.content.findUnique({
+      where: { id: contentId },
+      include: { variants: true }
+    });
+
+    if (!content) {
+      return { success: false, error: 'Content not found' };
+    }
+
+    const scheduledDate = new Date(scheduledAt);
+
+    // Create a ScheduledPost record for each variant/platform
+    for (const variant of content.variants) {
+      await prisma.scheduledPost.create({
+        data: {
+          contentId: contentId,
+          platform: variant.platform,
+          scheduledAt: scheduledDate,
+          status: 'SCHEDULED'
+        }
+      });
+    }
+
+    // Update parent content status to SCHEDULED
+    await prisma.content.update({
+      where: { id: contentId },
+      data: { status: 'SCHEDULED' }
+    });
+
+    return { success: true, message: 'Content scheduled successfully.' };
+  } catch (error) {
+    console.error('Schedule Content Error:', error);
+    return { success: false, error: 'Internal Server Error' };
   }
 }

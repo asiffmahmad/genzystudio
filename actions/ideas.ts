@@ -66,3 +66,36 @@ export async function convertIdeaToContent(ideaId: string) {
     return { success: false, error: 'Internal Server Error' };
   }
 }
+
+export async function updateIdea(ideaId: string, data: { title: string; description?: string; tags?: string; sourceUrl?: string; notes?: string; status?: string }) {
+  try {
+    const { title, description, tags, sourceUrl, notes, status } = data;
+    const idea = await prisma.idea.update({
+      where: { id: ideaId },
+      data: {
+        title: title || 'Untitled Idea',
+        description,
+        tags,
+        sourceUrl,
+        notes,
+        status: status as any
+      }
+    });
+    return { success: true, data: idea };
+  } catch (error) {
+    console.error('Update Idea Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
+
+export async function deleteIdea(ideaId: string) {
+  try {
+    await prisma.idea.delete({
+      where: { id: ideaId }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Delete Idea Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}

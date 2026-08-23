@@ -2,7 +2,12 @@
 import { useEffect, useState } from 'react';
 import { getContents, deleteContent } from '@/actions/content';
 
-export function PublishedHistory() {
+interface PublishedHistoryProps {
+  filterStatus?: 'PUBLISHED' | 'DRAFT' | 'SCHEDULED';
+  title?: string;
+}
+
+export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Published Posts History' }: PublishedHistoryProps) {
   const [postedContents, setPostedContents] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState<{
@@ -22,14 +27,14 @@ export function PublishedHistory() {
     try {
       const response = await getContents();
       if (response.success && response.data) {
-        // Filter for PUBLISHED status
-        setPostedContents(response.data.filter((item: any) => item.status === 'PUBLISHED'));
+        // Filter for matching status
+        setPostedContents(response.data.filter((item: any) => item.status === filterStatus));
       } else {
-        showNotification(response.error || 'Failed to fetch published posts', 'error');
+        showNotification(response.error || 'Failed to fetch posts', 'error');
       }
     } catch (error) {
-      console.error('Error fetching published posts:', error);
-      showNotification('Failed to fetch published posts', 'error');
+      console.error('Error fetching posts:', error);
+      showNotification('Failed to fetch posts', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -37,12 +42,14 @@ export function PublishedHistory() {
 
   useEffect(() => {
     fetchPublished();
-  }, []);
+  }, [filterStatus]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this post from the database? This action is permanent and cannot be undone.')) {
       return;
     }
+    // Optimistic delete
+    setPostedContents(prev => prev.filter(post => post.id !== id));
     try {
       const response = await deleteContent(id);
       if (response.success) {
@@ -50,19 +57,27 @@ export function PublishedHistory() {
         fetchPublished();
       } else {
         showNotification(response.error || 'Failed to delete post', 'error');
+        fetchPublished();
       }
     } catch (error) {
       console.error('Error deleting post:', error);
       showNotification('Failed to delete post', 'error');
+      fetchPublished();
     }
+  };
+
+  const getStatusColor = (status: string) => {
+    if (status === 'PUBLISHED') return 'bg-emerald-500/20 text-emerald-400';
+    if (status === 'SCHEDULED') return 'bg-amber-500/20 text-amber-400';
+    return 'bg-blue-500/20 text-blue-400';
   };
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-      <h2 className="text-xl font-medium text-gray-200 mb-6">Published Posts History</h2>
+      <h2 className="text-xl font-medium text-gray-200 mb-6">{title}</h2>
       
       {isLoading ? (
-        <div className="text-gray-400 py-12 text-center">Loading published history from database...</div>
+        <div className="text-gray-400 py-12 text-center">Loading from database...</div>
       ) : postedContents.length > 0 ? (
         <div className="space-y-6">
           {postedContents.map((post) => (
@@ -70,8 +85,8 @@ export function PublishedHistory() {
               <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-3">
                   <h4 className="font-semibold text-gray-200">{post.title}</h4>
-                  <span className="px-2 py-0.5 text-xs font-semibold bg-emerald-500/20 text-emerald-400 rounded-full">
-                    Published
+                  <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(post.status)}`}>
+                    {post.status}
                   </span>
                 </div>
                 <p className="text-sm text-gray-300 line-clamp-3 whitespace-pre-wrap">{post.content}</p>
@@ -93,7 +108,7 @@ export function PublishedHistory() {
                 )}
                 
                 <div className="text-xs text-gray-500">
-                  Published: {new Date(post.createdAt).toLocaleString()}
+                  Created: {new Date(post.createdAt).toLocaleString()}
                 </div>
               </div>
               
@@ -107,7 +122,7 @@ export function PublishedHistory() {
           ))}
         </div>
       ) : (
-        <div className="text-gray-400 py-12 text-center">No published posts found in the database.</div>
+        <div className="text-gray-400 py-12 text-center">No posts found with this status.</div>
       )}
 
       {notification && (

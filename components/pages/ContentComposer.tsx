@@ -17,6 +17,10 @@ export function ContentComposer() {
     message: string;
     type: 'success' | 'error' | 'info';
   } | null>(null);
+  
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [showScheduleInput, setShowScheduleInput] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
 
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ message, type });
@@ -108,6 +112,49 @@ export function ContentComposer() {
       showNotification(error.message || 'Failed to publish content', 'error');
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!scheduledAt) {
+      showNotification('Please select a date and time to schedule.', 'error');
+      return;
+    }
+    if (selectedPlatforms.length === 0) {
+      showNotification('Please select at least one platform to schedule.', 'error');
+      return;
+    }
+    setIsScheduling(true);
+    try {
+      const { createContent, scheduleContent } = await import('@/actions/content');
+      
+      const saveResponse = await createContent({
+        title: title || 'Quick Post',
+        content,
+        platforms: selectedPlatforms,
+        mediaUrl: mediaUrl || undefined
+      });
+      
+      if (!saveResponse.success || !saveResponse.data) {
+        throw new Error(saveResponse.error || 'Failed to auto-save draft');
+      }
+      
+      const contentId = saveResponse.data.id;
+      setCurrentContentId(contentId);
+
+      const response = await scheduleContent(contentId, scheduledAt);
+      if (response.success) {
+        showNotification('Post scheduled successfully!', 'success');
+        setShowScheduleInput(false);
+        setScheduledAt('');
+      } else {
+        showNotification(response.error || 'Failed to schedule post', 'error');
+      }
+    } catch (error: any) {
+      console.error('Failed to schedule', error);
+      showNotification(error.message || 'Failed to schedule content', 'error');
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -280,18 +327,49 @@ export function ContentComposer() {
           </div>
         </div>
 
+        {showScheduleInput && (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
+            <label className="block text-sm font-medium text-gray-400">Select Date & Time to Publish</label>
+            <div className="flex gap-3">
+              <input
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-gray-100 focus:outline-none focus:border-blue-500 transition-colors"
+              />
+              <button
+                onClick={handleSchedule}
+                disabled={isScheduling || !scheduledAt || selectedPlatforms.length === 0}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors font-medium"
+              >
+                {isScheduling ? 'Scheduling...' : 'Confirm Schedule'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-4">
           <button 
             onClick={handleSaveDraft}
-            disabled={isSaving || isPublishing}
-            className="px-6 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors font-medium flex-1 disabled:opacity-50"
+            disabled={isSaving || isPublishing || isScheduling}
+            className="px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors font-medium flex-1 disabled:opacity-50"
           >
             {isSaving ? 'Saving...' : 'Save Draft'}
           </button>
           <button 
+            onClick={() => setShowScheduleInput(!showScheduleInput)}
+            className={`px-4 py-2 border rounded-lg transition-all font-medium flex-1 ${
+              showScheduleInput 
+                ? 'bg-amber-600/20 border-amber-500 text-amber-400' 
+                : 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-gray-200'
+            }`}
+          >
+            📅 {showScheduleInput ? 'Cancel' : 'Schedule'}
+          </button>
+          <button 
             onClick={handlePublish}
-            disabled={isPublishing || selectedPlatforms.length === 0}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex-1 disabled:opacity-50"
+            disabled={isPublishing || isScheduling || selectedPlatforms.length === 0}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex-1 disabled:opacity-50"
           >
             {isPublishing ? 'Publishing...' : 'Review & Publish'}
           </button>

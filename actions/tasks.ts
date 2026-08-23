@@ -70,3 +70,36 @@ export async function createTask(data: { title: string; description?: string; pr
     return { success: false, error: 'Internal Server Error' };
   }
 }
+
+export async function updateTask(taskId: string, data: { title: string; description?: string; priority?: string; dueDate?: string | null; recurrenceType?: string; status?: string }) {
+  try {
+    const { title, description, priority, dueDate, recurrenceType, status } = data;
+    const task = await prisma.task.update({
+      where: { id: taskId },
+      data: {
+        title,
+        description,
+        priority: priority || 'NORMAL',
+        dueDate: dueDate ? new Date(dueDate) : null,
+        recurrenceType: recurrenceType || 'NONE',
+        status: status as any
+      }
+    });
+    return { success: true, data: task };
+  } catch (error) {
+    console.error('Update Task Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
+
+export async function deleteTask(taskId: string) {
+  try {
+    await prisma.task.delete({
+      where: { id: taskId }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Delete Task Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
