@@ -23,9 +23,13 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
   const [editScheduledAt, setEditScheduledAt] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
+  // View Modal States
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewPost, setViewPost] = useState<any | null>(null);
+  const [viewScheduledAt, setViewScheduledAt] = useState<string>('');
+
   const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
     setNotification({ message, type });
-    // Keep errors open slightly longer for readability
     const duration = type === 'error' ? 8000 : 4000;
     setTimeout(() => {
       setNotification(prev => prev && prev.message === message ? null : prev);
@@ -57,7 +61,6 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
     if (!confirm('Are you sure you want to delete this post from the database? This action is permanent.')) {
       return;
     }
-    // Optimistic delete
     setPostedContents(prev => prev.filter(post => post.id !== id));
     try {
       const response = await deleteContent(id);
@@ -93,6 +96,23 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
     }
   };
 
+  const handleOpenView = async (post: any) => {
+    setViewPost(post);
+    setViewScheduledAt('');
+    setShowViewModal(true);
+
+    if (post.status === 'SCHEDULED') {
+      try {
+        const timeRes = await getScheduledTime(post.id);
+        if (timeRes.success && timeRes.data) {
+          setViewScheduledAt(new Date(timeRes.data).toLocaleString());
+        }
+      } catch (err) {
+        console.error('Failed to get scheduled time', err);
+      }
+    }
+  };
+
   const handleOpenEdit = async (post: any) => {
     setEditingPostId(post.id);
     setEditTitle(post.title || '');
@@ -124,7 +144,6 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
     if (!editingPostId) return;
     setIsSavingEdit(true);
     try {
-      // 1. Update text content
       const contentRes = await updateContent(editingPostId, {
         title: editTitle,
         content: editContent
@@ -136,7 +155,6 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
         return;
       }
 
-      // 2. If scheduled, update schedule time
       if (filterStatus === 'SCHEDULED' && editScheduledAt) {
         const isoString = new Date(editScheduledAt).toISOString();
         const scheduleRes = await updateScheduledTime(editingPostId, isoString);
@@ -176,7 +194,12 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
             <div key={post.id} className="border border-gray-800 rounded-xl p-5 bg-gray-950/50 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
               <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-3">
-                  <h4 className="font-semibold text-gray-200">{post.title}</h4>
+                  <h4 
+                    onClick={() => handleOpenView(post)}
+                    className="font-semibold text-gray-200 hover:text-blue-400 cursor-pointer transition-colors"
+                  >
+                    {post.title}
+                  </h4>
                   <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusColor(post.status)}`}>
                     {post.status}
                   </span>
@@ -193,29 +216,29 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
                   </div>
                 )}
                 
-                {post.variants?.some((v: any) => v.image) && (
-                  <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
-                    🖼️ Media attached
-                  </div>
-                )}
-                
                 <div className="text-xs text-gray-500">
                   Created: {new Date(post.createdAt).toLocaleString()}
                 </div>
               </div>
               
               <div className="flex flex-wrap gap-2 self-stretch md:self-auto justify-end">
+                <button
+                  onClick={() => handleOpenView(post)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors font-medium text-xs flex items-center justify-center"
+                >
+                  👁️ View
+                </button>
                 {(filterStatus === 'DRAFT' || filterStatus === 'SCHEDULED') && (
                   <>
                     <button
                       onClick={() => handlePublishNow(post.id)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-sm flex items-center gap-1 justify-center"
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium text-xs flex items-center justify-center"
                     >
                       🚀 Publish Now
                     </button>
                     <button
                       onClick={() => handleOpenEdit(post)}
-                      className="px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors font-medium text-sm flex items-center gap-1 justify-center"
+                      className="px-3 py-1.5 bg-gray-800 border border-gray-750 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors font-medium text-xs flex items-center justify-center"
                     >
                       ✏️ Edit
                     </button>
@@ -223,7 +246,7 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
                 )}
                 <button
                   onClick={() => handleDelete(post.id)}
-                  className="px-4 py-2 bg-red-950/60 border border-red-800/40 hover:bg-red-900 hover:text-white text-red-300 rounded-lg transition-colors font-medium text-sm flex items-center gap-1 justify-center"
+                  className="px-3 py-1.5 bg-red-950/60 border border-red-800/40 hover:bg-red-900 hover:text-white text-red-300 rounded-lg transition-colors font-medium text-xs flex items-center justify-center"
                 >
                   🗑️ Delete
                 </button>
@@ -233,6 +256,64 @@ export function PublishedHistory({ filterStatus = 'PUBLISHED', title = 'Publishe
         </div>
       ) : (
         <div className="text-gray-400 py-12 text-center">No posts found with this status.</div>
+      )}
+
+      {/* View Post Modal */}
+      {showViewModal && viewPost && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-gray-800 pb-3">
+              <h3 className="text-lg font-medium text-gray-200">Post Details</h3>
+              <button 
+                onClick={() => setShowViewModal(false)}
+                className="text-gray-500 hover:text-gray-300 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm text-gray-300">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Title</label>
+                <div className="bg-gray-950 border border-gray-800 px-4 py-2.5 rounded-lg text-gray-200 font-medium">{viewPost.title}</div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Content</label>
+                <div className="bg-gray-950 border border-gray-800 px-4 py-3 rounded-lg text-gray-200 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">{viewPost.content || <span className="text-gray-600 italic">No content.</span>}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                  <div className="bg-gray-950 border border-gray-800 px-4 py-2 rounded-lg text-gray-200 capitalize font-medium">{viewPost.status}</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Platforms</label>
+                  <div className="bg-gray-950 border border-gray-800 px-4 py-2 rounded-lg text-gray-200 flex flex-wrap gap-1">
+                    {viewPost.variants?.map((v: any) => v.platform).join(', ') || 'None'}
+                  </div>
+                </div>
+              </div>
+
+              {viewPost.status === 'SCHEDULED' && viewScheduledAt && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Scheduled At</label>
+                  <div className="bg-gray-950 border border-gray-800 px-4 py-2 rounded-lg text-amber-400 font-semibold">{viewScheduledAt}</div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end border-t border-gray-800 pt-4 mt-2">
+                <button 
+                  onClick={() => setShowViewModal(false)}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Edit Post Modal */}
