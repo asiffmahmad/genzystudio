@@ -22,6 +22,8 @@ export function ContentComposer() {
   const [showScheduleInput, setShowScheduleInput] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
 
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+
   const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setNotification({ message, type });
     // Keep errors open slightly longer for readability
@@ -206,6 +208,10 @@ export function ContentComposer() {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
 
+    // Clear previous media to avoid posting stale attachments
+    setMediaUrl(null);
+    setIsUploadingMedia(true);
+
     // Show local blob URL instantly for preview (no upload needed)
     const localPreview = URL.createObjectURL(file);
     setPreviewUrl(localPreview);
@@ -239,6 +245,8 @@ export function ContentComposer() {
       console.error('File upload failed', error);
       showNotification('Failed to upload media: ' + (error.response?.data?.error || error.message), 'error');
       setPreviewUrl(null);
+    } finally {
+      setIsUploadingMedia(false);
     }
   };
 
@@ -310,15 +318,19 @@ export function ContentComposer() {
                   Upload Image
                   <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                 </label>
-                {(previewUrl || mediaUrl) && (
+                {isUploadingMedia ? (
+                  <div className="text-sm text-blue-400 animate-pulse flex items-center gap-2">
+                    <span>⏳ Uploading media...</span>
+                  </div>
+                ) : mediaUrl ? (
                   <div className="flex items-center gap-3">
-                    <img src={previewUrl || mediaUrl!} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-gray-700" />
+                    <img src={previewUrl || mediaUrl} alt="Preview" className="w-16 h-16 object-cover rounded-lg border border-gray-700" />
                     <div className="text-sm text-green-400 flex items-center gap-2">
                       <span>✓ Media attached</span>
                       <button onClick={() => { setMediaUrl(null); setPreviewUrl(null); }} className="text-gray-500 hover:text-red-400">Remove</button>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
 
@@ -349,7 +361,7 @@ export function ContentComposer() {
               />
               <button
                 onClick={handleSchedule}
-                disabled={isScheduling || !scheduledAt || selectedPlatforms.length === 0}
+                disabled={isScheduling || !scheduledAt || selectedPlatforms.length === 0 || isUploadingMedia}
                 className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg transition-colors font-medium"
               >
                 {isScheduling ? 'Scheduling...' : 'Confirm Schedule'}
@@ -361,7 +373,7 @@ export function ContentComposer() {
         <div className="flex gap-4">
           <button 
             onClick={handleSaveDraft}
-            disabled={isSaving || isPublishing || isScheduling}
+            disabled={isSaving || isPublishing || isScheduling || isUploadingMedia}
             className="px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-200 rounded-lg transition-colors font-medium flex-1 disabled:opacity-50"
           >
             {isSaving ? 'Saving...' : 'Save Draft'}
@@ -378,7 +390,7 @@ export function ContentComposer() {
           </button>
           <button 
             onClick={handlePublish}
-            disabled={isPublishing || isScheduling || selectedPlatforms.length === 0}
+            disabled={isPublishing || isScheduling || selectedPlatforms.length === 0 || isUploadingMedia}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium flex-1 disabled:opacity-50"
           >
             {isPublishing ? 'Publishing...' : 'Review & Publish'}
