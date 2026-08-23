@@ -50,3 +50,23 @@ export async function completeTask(taskId: string) {
     return { success: false, error: 'Internal Server Error' };
   }
 }
+
+export async function createTask(data: { title: string; description?: string; priority?: string; dueDate?: string | null; recurrenceType?: string }) {
+  try {
+    const { title, description, priority, dueDate, recurrenceType } = data;
+    const task = await prisma.task.create({
+      data: {
+        title,
+        description,
+        priority: priority || 'NORMAL',
+        dueDate: dueDate ? new Date(dueDate) : null,
+        recurrenceType: recurrenceType || 'NONE',
+        status: 'PENDING'
+      }
+    });
+    return { success: true, data: task };
+  } catch (error) {
+    console.error('Create Task Error:', error);
+    return { success: false, error: 'Internal Server Error' };
+  }
+}
