@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    // Optional CRON_SECRET validation to secure the endpoint in production
+    const isVercelCron = request.headers.get('x-vercel-cron') === '1';
     const authHeader = request.headers.get('Authorization');
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    
+    if (!isVercelCron && cronSecret && cronSecret !== 'your-cron-secret-here' && authHeader !== `Bearer ${cronSecret}`) {
       const url = new URL(request.url);
       const queryKey = url.searchParams.get('key');
       if (queryKey !== cronSecret) {
