@@ -6,14 +6,13 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const isVercelCron = request.headers.get('x-vercel-cron') === '1';
     const authHeader = request.headers.get('Authorization');
     const cronSecret = process.env.CRON_SECRET;
     
-    if (!isVercelCron && cronSecret && cronSecret !== 'your-cron-secret-here' && authHeader !== `Bearer ${cronSecret}`) {
-      const url = new URL(request.url);
-      const queryKey = url.searchParams.get('key');
-      if (queryKey !== cronSecret) {
+    // In production, CRON_SECRET should be set.
+    // If it's configured (non-default), we strictly enforce the Bearer token.
+    if (cronSecret && cronSecret !== 'your-cron-secret-here') {
+      if (authHeader !== `Bearer ${cronSecret}`) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
     }
@@ -35,11 +34,23 @@ export async function GET(request: Request) {
 
     for (const post of duePosts) {
       try {
-        // Update status to PUBLISHING to prevent race conditions
-        await prisma.scheduledPost.update({
-          where: { id: post.id },
-          data: { status: 'PUBLISHING', lastAttemptAt: new Date() }
+        // Atomic status check and update: ensure status is SCHEDULED before proceeding.
+        // This guarantees concurrent cron processes do not publish the same post twice.
+        const updateResult = await prisma.scheduledPost.updateMany({
+          where: {
+            id: post.id,
+            status: 'SCHEDULED'
+          },
+          data: {
+            status: 'PUBLISHING',
+            lastAttemptAt: new Date()
+          }
         });
+
+        if (updateResult.count === 0) {
+          // Already claimed/processed by another concurrent execution
+          continue;
+        }
 
         // Retrieve the platform-specific variant content
         const variant = await prisma.contentVariant.findFirst({
