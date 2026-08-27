@@ -29,10 +29,6 @@ export function Tasks() {
   const [recurrenceType, setRecurrenceType] = useState('NONE');
   const [status, setStatus] = useState('PENDING');
 
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
   const fetchTasks = async () => {
     try {
       const response = await getTasks();
@@ -45,6 +41,11 @@ export function Tasks() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchTasks();
+  }, []);
 
   const handleComplete = async (taskId: string) => {
     // Optimistic UI update to ensure instant response (0ms wait time for checkbox)
