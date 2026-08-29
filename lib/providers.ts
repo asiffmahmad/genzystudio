@@ -179,9 +179,162 @@ export class MockXProvider implements SocialProvider {
   validate(content: string) { return { valid: true }; }
 }
 
+export class RealXProvider implements SocialProvider {
+  name = 'X';
+
+  async publish(content: string) {
+    try {
+      // Raw SQL: find connected X account
+      const accounts = await prisma.$queryRaw<any[]>`
+        SELECT id, platform, accountName, encryptedAccessToken, encryptedRefreshToken, tokenExpiry
+        FROM SocialAccount
+        WHERE platform = 'X' AND connectionStatus = 'CONNECTED'
+        LIMIT 1
+      `;
+
+      const account = accounts[0];
+
+      if (!account || !account.encryptedAccessToken) {
+        return { success: false, error: 'No connected X account found. Please connect your X account first.' };
+      }
+
+      let accessToken = decrypt(account.encryptedAccessToken);
+
+      // Attempt to post; if token is expired, refresh and retry once
+      let retried = false;
+      while (true) {
+        try {
+          const res = await axios.post(
+            'https://api.x.com/2/tweets',
+            { text: content },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          const tweetId = res.data?.data?.id;
+          const username = account.accountName?.replace(/^@/, '') || 'i';
+          const tweetUrl = tweetId
+            ? `https://x.com/${username}/status/${tweetId}`
+            : 'https://x.com';
+
+          return { success: true, url: tweetUrl };
+        } catch (err: any) {
+          const status = err.response?.status;
+
+          // 401 or 403 with expired/invalid token → try refresh once
+          if ((status === 401 || status === 403) && !retried && account.encryptedRefreshToken) {
+            retried = true;
+            const refreshed = await this.refreshToken(account);
+            if (refreshed) {
+              accessToken = refreshed;
+              continue;
+            }
+          }
+
+          if (status === 429) {
+            return { success: false, error: 'X API rate limit reached. Please wait and try again later.' };
+          }
+
+          const errorDetail = err.response?.data?.detail || err.response?.data?.title || err.message;
+          console.error('[X Publish] Error:', err.response?.data || err.message);
+          return { success: false, error: `X API Error: ${errorDetail}` };
+        }
+      }
+    } catch (error: any) {
+      console.error('[X Publish] Unexpected error:', error.message);
+      return { success: false, error: `Failed to publish to X: ${error.message}` };
+    }
+  }
+
+  /**
+   * Refresh an expired X access token using the stored refresh token.
+   * Returns the new access token string on success, or null on failure.
+   */
+  private async refreshToken(account: any): Promise<string | null> {
+    try {
+      const clientId = process.env.X_CLIENT_ID;
+      const clientSecret = process.env.X_CLIENT_SECRET;
+
+      if (!clientId || !clientSecret || !account.encryptedRefreshToken) {
+        return null;
+      }
+
+      const refreshToken = decrypt(account.encryptedRefreshToken);
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+      const res = await axios.post(
+        'https://api.x.com/2/oauth2/token',
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Basic ${basicAuth}`,
+          },
+        }
+      );
+
+      const newAccessToken = res.data.access_token;
+      const newRefreshToken = res.data.refresh_token;
+      const expiresIn = res.data.expires_in;
+
+      if (!newAccessToken) return null;
+
+      // Persist refreshed tokens via raw SQL
+      const { encrypt: enc } = await import('./encryption');
+      const encNewAccess = enc(newAccessToken);
+      const encNewRefresh = newRefreshToken ? enc(newRefreshToken) : account.encryptedRefreshToken;
+      const newExpiry = expiresIn ? new Date(Date.now() + expiresIn * 1000) : account.tokenExpiry;
+      const now = new Date();
+
+      await prisma.$executeRaw`
+        UPDATE SocialAccount
+        SET encryptedAccessToken = ${encNewAccess},
+            encryptedRefreshToken = ${encNewRefresh},
+            tokenExpiry = ${newExpiry},
+            lastSuccessfulConnection = ${now},
+            updatedAt = ${now}
+        WHERE id = ${account.id}
+      `;
+
+      return newAccessToken;
+    } catch (err: any) {
+      console.error('[X Token Refresh] Failed:', err.response?.data || err.message);
+      // Mark the account as needing re-auth via raw SQL
+      try {
+        const now = new Date();
+        await prisma.$executeRaw`
+          UPDATE SocialAccount
+          SET connectionStatus = 'EXPIRED', updatedAt = ${now}
+          WHERE id = ${account.id}
+        `;
+      } catch {
+        // ignore
+      }
+      return null;
+    }
+  }
+
+  validate(content: string) {
+    if (!content || content.trim().length === 0) {
+      return { valid: false, reason: 'Post content cannot be empty.' };
+    }
+    if (content.length > 280) {
+      return { valid: false, reason: `Post is ${content.length} characters — X allows a maximum of 280.` };
+    }
+    return { valid: true };
+  }
+}
+
 export const providers: Record<string, SocialProvider> = {
   LinkedIn: new MockLinkedInProvider(),
-  X: new MockXProvider(),
+  X: process.env.SOCIAL_PROVIDER_MODE === 'real' ? new RealXProvider() : new MockXProvider(),
   Instagram: process.env.SOCIAL_PROVIDER_MODE === 'real' ? new RealInstagramProvider() : new MockLinkedInProvider(),
   Facebook: process.env.SOCIAL_PROVIDER_MODE === 'real' ? new RealFacebookProvider() : new MockLinkedInProvider(),
 };

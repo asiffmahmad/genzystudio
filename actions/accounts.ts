@@ -159,24 +159,28 @@ export async function testEnvConnection(platform: string) {
     if (platform === 'X' || platform === 'Twitter') {
       const clientId = process.env.X_CLIENT_ID;
       const clientSecret = process.env.X_CLIENT_SECRET;
+      const redirectUri = process.env.X_REDIRECT_URI;
       
       if (!clientId || !clientSecret) {
         return { success: false, error: 'X_CLIENT_ID or X_CLIENT_SECRET missing from .env' };
       }
 
-      try {
-        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-        const tokenRes = await axios.post('https://api.twitter.com/oauth2/token', 'grant_type=client_credentials', {
-          headers: { 'Authorization': `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
-        return { success: true, message: 'X (Twitter) Connection SUCCESSFUL! Client ID/Secret are valid.', details: { token_type: tokenRes.data.token_type } };
-      } catch (postError: any) {
-        return {
-          success: false,
-          error: 'X Connection Failed. Check your Client ID and Secret in .env',
-          details: postError.response?.data || postError.message
-        };
+      if (!redirectUri) {
+        return { success: false, error: 'X_REDIRECT_URI missing from .env' };
       }
+
+      // X OAuth 2.0 (user context) doesn't support client_credentials grant,
+      // so we can only verify that env vars are present and well-formed.
+      const isPlaceholder = clientId === 'your-x-client-id' || clientSecret === 'your-x-client-secret';
+      if (isPlaceholder) {
+        return { success: false, error: 'X credentials are still set to placeholder values. Please update them with your real X Developer App credentials.' };
+      }
+
+      return {
+        success: true,
+        message: 'X OAuth 2.0 environment is configured. Click "Connect X" to authenticate via OAuth.',
+        details: { redirectUri, hasClientId: true, hasClientSecret: true }
+      };
     }
 
     return { success: false, error: `Test post not implemented for ${platform} yet.` };
